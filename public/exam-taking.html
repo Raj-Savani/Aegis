@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Take Exam</title>
+    <link rel="stylesheet" href="style.css"> <!-- Linking external CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"> <!-- Bootstrap CSS -->
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-firestore.js"></script>
+    <!-- WebRTC and Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.7.2/simplepeer.min.js"></script>
+
+    <style>
+        html, body {
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+}
+
+        /* Anti-cheating features: Disable text selection and right click */
+        body {
+            user-select: none;
+            -webkit-user-select: none; /* Disable selection for Safari */
+            -moz-user-select: none;    /* Disable selection for Firefox */
+            background-color: #f8f9fa;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        h1, h2 {
+            color: #007bff;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+
+        .container {
+            display: flex;
+            height: calc(100vh - 60px); /* Adjusted for header height */
+            overflow: hidden;
+        }
+
+        .left-dashboard {
+            width: 20%;
+            background-color: #ffffff;
+            border-right: 2px solid #ddd;
+            overflow-y: auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .right-content {
+            width: 80%;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .question-container {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #fff;
+        }
+
+        .question-status {
+            padding: 5px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #f1f1f1;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .answered {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .timer {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        .question-container h3 {
+            margin-top: 0;
+        }
+
+        /* Header styling */
+        .header {
+            background-color: #007bff;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header .search-bar {
+            flex-grow: 1;
+            margin: 0 20px;
+        }
+
+        .header .profile-icon {
+            color: white;
+            font-size: 24px;
+            text-decoration: none;
+        }
+    </style>
+
+    <script>
+        openFullScreen();
+        function openFullScreen() {
+    if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen();
+    } else if (document.documentElement.mozRequestFullScreen) { /* Firefox */
+        document.documentElement.mozRequestFullScreen();
+    } else if (document.documentElement.webkitRequestFullscreen) { /* Chrome, Safari & Opera */
+        document.documentElement.webkitRequestFullscreen();
+    } else if (document.documentElement.msRequestFullscreen) { /* IE/Edge */
+        document.documentElement.msRequestFullscreen();
+    }
+}
+
+
+window.addEventListener('resize', function() {
+    window.resizeTo(screen.width, screen.height);
+});
+
+        // Disable right-click
+        document.addEventListener('contextmenu', event => event.preventDefault());
+
+        // Prevent double-clicking
+        document.addEventListener('dblclick', event => event.preventDefault());
+
+        const socket = io();
+        let peer;
+
+        // Firebase initialization
+        var firebaseConfig = {
+            apiKey: "AIzaSyBVIbB_s1jtxYjPwN8xysL8P3c8P--2Pcc",
+            authDomain: "check-5a066.firebaseapp.com",
+            projectId: "check-5a066",
+            storageBucket: "check-5a066.appspot.com",
+            messagingSenderId: "1018652744233",
+            appId: "1:1018652744233:web:0bce661670208bf2ee9a38"
+        };
+        firebase.initializeApp(firebaseConfig);
+        var db = firebase.firestore();
+
+        // Get examId from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        let examId = urlParams.get("examId");
+
+        let totalQuestions = 0;
+        let answers = [];
+
+        // Fetch exam data from Firestore
+        db.collection("exams").doc(examId).get().then(function (doc) {
+            if (doc.exists) {
+                const examData = doc.data();
+                document.getElementById("exam-title").innerText = examData.title;
+
+                displayQuestions(examData.questions);
+                startTimer(examData.timer * 60);  // Convert minutes to seconds for countdown
+
+                // Start webcam streaming for admin monitoring
+                startWebcamStream();
+            } else {
+                console.log("No such exam!");
+            }
+        });
+
+        // Display questions in the DOM with the question dashboard on the left
+        function displayQuestions(questions) {
+            totalQuestions = questions.length;
+            const container = document.getElementById("questions-container");
+            const dashboard = document.getElementById("question-dashboard");
+
+            questions.forEach((question, index) => {
+                const questionDiv = `
+                    <div id="question${index}" class="question-container">
+                        <h3>${index + 1}. ${question.questionText}</h3>
+                        ${question.options.map((option, i) => `
+                            <input type="radio" name="question${index}" value="${i + 1}"> ${option}<br>
+                        `).join('')}
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', questionDiv);
+
+                const dashboardItem = `
+                    <div id="status${index}" class="question-status" onclick="showQuestion(${index})">${index + 1}</div>
+                `;
+                dashboard.insertAdjacentHTML('beforeend', dashboardItem);
+            });
+
+            showQuestion(0); // Show the first question initially
+        }
+
+        // Show only the selected question
+        function showQuestion(index) {
+            // Hide all questions
+            document.querySelectorAll('.question-container').forEach(q => q.style.display = 'none');
+            // Show the selected question
+            document.getElementById(`question${index}`).style.display = 'block';
+        }
+
+        // Start webcam and stream using WebRTC (only user's webcam, not admin)
+        function startWebcamStream() {
+            navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+                peer = new SimplePeer({
+                    initiator: true,
+                    stream: stream,
+                    config: {
+                        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]  // Google's public STUN server
+                    }
+                });
+
+                // Send WebRTC signaling data to server
+                peer.on('signal', (data) => {
+                    socket.emit('student-signal', data);
+                });
+
+                // Listen for signal data from the admin
+                socket.on('admin-signal', (signalData) => {
+                    peer.signal(signalData);
+                });
+            }).catch((error) => {
+                console.error("Webcam access denied:", error);
+                alert("Webcam access is required to take the exam.");
+            });
+        }
+
+        // Define the startTimer function for the countdown
+        function startTimer(duration) {
+            const timerDisplay = document.getElementById("timer");
+            let timeRemaining = duration;
+
+            const interval = setInterval(() => {
+                const minutes = Math.floor(timeRemaining / 60);
+                const seconds = timeRemaining % 60;
+                timerDisplay.textContent = `Time Remaining: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                timeRemaining--;
+
+                if (timeRemaining < 0) {
+                    clearInterval(interval);
+                    submitExam(); // Automatically submit when time runs out
+                }
+            }, 1000);
+        }
+
+        // Function to submit the exam
+        function submitExam() {
+            saveAnswer();
+
+            // Disable all options
+            document.querySelectorAll('input[type="radio"]').forEach(input => input.disabled = true);
+
+            db.collection("exams").doc(examId).get().then(function (doc) {
+                if (doc.exists) {
+                    const examData = doc.data();
+                    const questions = examData.questions; // Fetch the questions from Firestore
+
+                    let score = 0;
+
+                    // Ensure questions data is available
+                    if (!Array.isArray(questions) || questions.length !== totalQuestions) {
+                        console.error("Incorrect or missing questions data.");
+                        alert("An error occurred while calculating your score. Please try again.");
+                        return;
+                    }
+
+                    // Calculate score based on user's answers and correct answers
+                    for (let i = 0; i < totalQuestions; i++) {
+                        const userAnswer = answers[i];
+                        const correctAnswer = questions[i].correctAnswer;
+
+                        if (userAnswer === correctAnswer) {
+                            score++;
+                        }
+                    }
+
+                    const percentage = (score / totalQuestions) * 100;
+                    alert(`Your score: ${score}/${totalQuestions} (${percentage.toFixed(2)}%)`);
+
+                    setTimeout(() => {
+                        window.location.href = "exam-selection.html";  // Redirect after exam submission
+                    }, 5000);
+                } else {
+                    console.error("No such document!");
+                    alert("An error occurred while retrieving exam data. Please try again.");
+                }
+            }).catch(error => {
+                console.error("Error fetching exam data:", error);
+                alert("An error occurred while retrieving exam data. Please try again.");
+            });
+        }
+
+        // Function to save user answers
+        function saveAnswer() {
+            answers = []; // Initialize answers array
+            for (let i = 0; i < totalQuestions; i++) {
+                const selectedOption = document.querySelector(`input[name="question${i}"]:checked`);
+                if (selectedOption) {
+                    answers[i] = parseInt(selectedOption.value); // Store selected answer
+                    document.getElementById(`status${i}`).classList.add('answered');
+                } else {
+                    answers[i] = null; // If no answer is selected, save as null
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="left-dashboard" id="question-dashboard"></div>
+        <div class="right-content">
+            <h1 id="exam-title">Exam Title</h1>
+            <div class="timer" id="timer">Time Remaining: 00:00</div>
+            <div id="questions-container"></div>
+            <div class="text-center">
+                <button class="btn btn-primary" onclick="submitExam()">Submit Exam</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FontAwesome for user icon -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/js/all.min.js"></script>
+</body>
+</html>

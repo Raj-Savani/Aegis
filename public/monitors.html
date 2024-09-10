@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Monitoring Page</title>
+    <style>
+        video {
+            width: 500px;
+            height: 400px;
+            background-color: black;
+        }
+
+        button {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+    <!-- WebRTC and Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/simple-peer@9.7.2/simplepeer.min.js"></script>
+</head>
+<body>
+    <h1>Monitoring Student Exams</h1>
+
+    <!-- Video stream from student -->
+    <video id="student-webcam" autoplay playsinline muted></video>
+    
+    <!-- Button for starting the video stream manually -->
+    <button id="start-video">Start Monitoring</button>
+
+    <script>
+        const socket = io();
+        const videoElement = document.getElementById('student-webcam');
+        let peer;
+
+        // Initialize WebRTC peer connection (SimplePeer.js)
+        peer = new SimplePeer({
+            initiator: false,
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' }  // Valid STUN server from Google
+                ]
+            }
+        });
+
+        // Send signal data to the student
+        peer.on('signal', (data) => {
+            socket.emit('admin-signal', data);
+        });
+
+        // Listen for signal data from the student
+        socket.on('student-signal', (signalData) => {
+            peer.signal(signalData);
+        });
+
+        // Receive and prepare the video stream from the student
+        peer.on('stream', (stream) => {
+            // Wait for user interaction (button click) to play the video
+            const startButton = document.getElementById('start-video');
+            startButton.addEventListener('click', () => {
+                videoElement.srcObject = stream;
+                videoElement.play().catch((error) => {
+                    console.error('Video play error:', error);
+                });
+                startButton.style.display = 'none';  // Hide the button after the video starts
+            });
+        });
+
+        peer.on('error', (err) => {
+            console.error('WebRTC error:', err);
+        });
+
+        peer.on('close', () => {
+            console.log('Peer connection closed.');
+        });
+    </script>
+</body>
+</html>

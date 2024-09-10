@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Exam</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        input, textarea {
+            display: block;
+            margin-bottom: 10px;
+            padding: 8px;
+            width: 100%;
+        }
+
+        button {
+            padding: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .question-container {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .question-container h3 {
+            margin-top: 0;
+        }
+    </style>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-firestore.js"></script>
+</head>
+<body>
+    <h1>Create an Exam</h1>
+
+    <!-- Form for creating a new exam -->
+    <form id="exam-form">
+        <input type="text" id="exam-title" placeholder="Exam Title" required>
+        <textarea id="exam-description" placeholder="Exam Description" required></textarea>
+        <input type="number" id="exam-timer" placeholder="Exam Duration (in minutes)" required>
+        <button type="submit">Create Exam</button>
+    </form>
+
+    <!-- Form for adding questions after creating an exam -->
+    <div id="questions-section" style="display:none;">
+        <h2>Add Questions to Exam</h2>
+        <form id="question-form">
+            <input type="text" id="question-text" placeholder="Enter Question" required>
+            <input type="text" id="option-1" placeholder="Option 1" required>
+            <input type="text" id="option-2" placeholder="Option 2" required>
+            <input type="text" id="option-3" placeholder="Option 3" required>
+            <input type="text" id="option-4" placeholder="Option 4" required>
+            <input type="number" id="correct-answer" placeholder="Correct Option (1-4)" required>
+            <button type="submit">Add Question</button>
+        </form>
+    </div>
+
+    <script>
+        // Firebase initialization
+        var firebaseConfig = {
+            apiKey: "AIzaSyBVIbB_s1jtxYjPwN8xysL8P3c8P--2Pcc",
+  authDomain: "check-5a066.firebaseapp.com",
+  projectId: "check-5a066",
+  storageBucket: "check-5a066.appspot.com",
+  messagingSenderId: "1018652744233",
+  appId: "1:1018652744233:web:0bce661670208bf2ee9a38"
+        };
+        firebase.initializeApp(firebaseConfig);
+        var db = firebase.firestore();
+
+        let createdExamId = null;
+
+        // Create a new exam
+        document.getElementById("exam-form").addEventListener("submit", function (e) {
+            e.preventDefault();
+            const title = document.getElementById("exam-title").value;
+            const description = document.getElementById("exam-description").value;
+            const timer = parseInt(document.getElementById("exam-timer").value);
+
+            // Store exam in Firestore
+            db.collection("exams").add({
+                title: title,
+                description: description,
+                timer: timer,
+                questions: [] // Initially empty
+            }).then((docRef) => {
+                alert("Exam created successfully!");
+                createdExamId = docRef.id;
+                document.getElementById("questions-section").style.display = "block"; // Show question form
+            }).catch((error) => {
+                console.error("Error creating exam: ", error);
+            });
+        });
+
+        // Add questions to the created exam
+        document.getElementById("question-form").addEventListener("submit", function (e) {
+            e.preventDefault();
+            const questionText = document.getElementById("question-text").value;
+            const options = [
+                document.getElementById("option-1").value,
+                document.getElementById("option-2").value,
+                document.getElementById("option-3").value,
+                document.getElementById("option-4").value
+            ];
+            const correctAnswer = parseInt(document.getElementById("correct-answer").value);
+
+            // Update the exam's questions in Firestore
+            db.collection("exams").doc(createdExamId).update({
+                questions: firebase.firestore.FieldValue.arrayUnion({
+                    questionText: questionText,
+                    options: options,
+                    correctAnswer: correctAnswer
+                })
+            }).then(() => {
+                alert("Question added successfully!");
+                document.getElementById("question-form").reset();
+            }).catch((error) => {
+                console.error("Error adding question: ", error);
+            });
+        });
+    </script>
+</body>
+</html>

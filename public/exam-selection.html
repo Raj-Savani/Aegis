@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Exam</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        /* Dark and Light Mode Styling */
+        body.light-mode {
+            background-color: #f8f9fa;
+            color: #343a40;
+        }
+    
+        body.dark-mode {
+            background-color: #343a40;
+            color: #f8f9fa;
+        }
+    
+        /* Button to toggle modes */
+        .mode-toggle-btn {
+            background-color: #0033a0;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+    
+        .mode-toggle-btn:hover {
+            background-color: #002080;
+        }
+    
+        /* Fonts */
+        body {
+            font-family: 'Poppins', sans-serif;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+    
+        h3 {
+            font-family: 'Roboto', sans-serif;
+        }
+    
+        p {
+            font-family: 'Open Sans', sans-serif;
+        }
+    
+        /* Keep the header the same as requested */
+        .header {
+            background-color: #0033a0;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+    
+        .logo-container {
+            display: flex;
+            align-items: center;
+        }
+    
+        .logo-container img {
+            width: 40px;
+            height: 40px;
+            margin-right: 10px;
+        }
+    
+        .logo-container h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            color: white;
+            margin-left: 10px;
+        }
+    
+        .search-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    
+        .search-container input {
+            width: 450px;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+    
+        .btn {
+            background-color: #6c757d;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            padding: 10px;
+            margin-left: 20px;
+        }
+    
+        .btn:hover {
+            background-color: #5a6268;
+        }
+    
+        /* Exam cards styling */
+        .exam-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            background-color: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+    
+        .exam-container:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+    
+        .dark-mode .exam-container {
+            background-color: #495057;
+            color: #e9ecef;
+        }
+    
+        .exam-container h3 {
+            margin-top: 0;
+        }
+    
+        .exam-container button {
+            background-color: #0033a0;
+            border: none;
+            color: white;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.3s ease, transform 0.3s ease;
+        }
+    
+        .exam-container button:hover {
+            background-color: #002080;
+            transform: scale(1.05);
+        }
+    
+        .dark-mode .exam-container button {
+            background-color: #002080;
+        }
+    
+        .dark-mode .exam-container button:hover {
+            background-color: #0033a0;
+            transform: scale(1.05);
+        }
+    </style>              
+</head>
+<body class="light-mode">
+    <header class="header">
+        <div class="logo-container">
+            <img src="path_to_logo" alt="Aegis Logo">
+            <h1>Aegis</h1>
+        </div>
+        <div class="search-container">
+            <input type="text" id="search-input" placeholder="Search exams..." oninput="filterExams()">
+        </div>
+        <a href="profile.html" class="btn"><i class="fas fa-user"></i></a>
+        <button class="mode-toggle-btn" onclick="toggleDarkMode()">Toggle Dark Mode</button>
+    </header>
+
+    <div class="container mt-4">
+        <div id="exam-list"></div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-firestore.js"></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script>
+        // Firebase initialization
+        var firebaseConfig = {
+            apiKey: "AIzaSyBVIbB_s1jtxYjPwN8xysL8P3c8P--2Pcc",
+            authDomain: "check-5a066.firebaseapp.com",
+            projectId: "check-5a066",
+            storageBucket: "check-5a066.appspot.com",
+            messagingSenderId: "1018652744233",
+            appId: "1:1018652744233:web:0bce661670208bf2ee9a38"
+        };
+        firebase.initializeApp(firebaseConfig);
+        var db = firebase.firestore();
+
+        let exams = [];
+
+        // Load available exams
+        function loadExams() {
+            const examList = document.getElementById("exam-list");
+            db.collection("exams").get().then((querySnapshot) => {
+                querySnapshot.forEach((doc) => {
+                    const examData = doc.data();
+                    exams.push({ id: doc.id, ...examData });
+                });
+                displayExams(exams);
+            });
+        }
+
+        // Display exams
+        function displayExams(examsToDisplay) {
+            const examList = document.getElementById("exam-list");
+            examList.innerHTML = ""; // Clear current list
+            examsToDisplay.forEach((exam) => {
+                const examDiv = document.createElement("div");
+                examDiv.classList.add("exam-container");
+                examDiv.innerHTML = `
+                    <h3>${exam.title}</h3>
+                    <p>Duration: ${exam.timer} minutes</p>
+                    <p>Description: ${exam.description}</p>
+                    <button onclick="takeExam('${exam.id}')">Take Exam</button>
+                `;
+                examList.appendChild(examDiv);
+            });
+        }
+
+        // Filter exams based on search input
+        function filterExams() {
+            const query = document.getElementById("search-input").value.toLowerCase();
+            const filteredExams = exams.filter(exam => 
+                exam.title.toLowerCase().includes(query) || 
+                exam.description.toLowerCase().includes(query)
+            );
+            displayExams(filteredExams);
+        }
+
+        // Redirect to exam-taking page
+        function takeExam(examId) {
+            window.location.href = `exam-taking.html?examId=${examId}`;
+        }
+
+        // Toggle between dark mode and light mode
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            document.body.classList.toggle('light-mode');
+        }
+
+        loadExams();
+    </script>
+</body>
+</html>
